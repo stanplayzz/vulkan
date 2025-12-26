@@ -11,7 +11,7 @@
 #include "utils/vertex.hpp"
 #include "descriptor_buffer.hpp"
 #include "texture.hpp"
-#include "transform.hpp"
+#include "utils/transform.hpp"
 #include "renderer.hpp"
 #include "utils/object.hpp"
 #include <imgui.h>
@@ -22,7 +22,7 @@
 namespace sve {
 	namespace fs = std::filesystem;
 
-	class App {
+	class Engine {
 	public:
 		void run();
 	private:
@@ -58,7 +58,6 @@ namespace sve {
 		std::optional<Renderer> m_renderer{};
 		vma::Buffer m_vbo{};
 		std::optional<Texture> m_texture{};
-		std::vector<glm::mat4> m_instance_data{};
 		std::optional<DescriptorBuffer> m_instance_ssbo{};
 
 		Transform m_view_transform{};

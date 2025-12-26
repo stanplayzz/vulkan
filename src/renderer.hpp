@@ -2,7 +2,7 @@
 #include "shader_program.hpp"
 #include "vma.hpp"
 #include "texture.hpp"
-#include "transform.hpp"
+#include "utils/transform.hpp"
 #include "gpu.hpp"
 #include "descriptor_buffer.hpp"
 #include "render_target.hpp"
@@ -77,8 +77,8 @@ namespace sve {
 		Buffered<std::vector<vk::DescriptorSet>> m_descriptor_sets{};
 
 		std::optional<DescriptorBuffer> m_view_ubo{};
+		std::optional<DescriptorBuffer> m_instance_ssbo;
 		Transform m_view_transform{};
-		std::optional<DescriptorBuffer> m_instance_ssbo{};
 
 		std::vector<Object*> m_objects_to_draw{};
 
@@ -93,6 +93,7 @@ namespace sve {
 
 		void inspect();
 		void update_view();
+		void update_instance_ssbo();
 		void bind_descriptor_sets(vk::CommandBuffer const command_buffer) const;
 		void update_textures_array(std::span<Texture*> textures);
 
@@ -102,7 +103,7 @@ namespace sve {
 		void submit_and_present();
 
 
-		void draw_object(vk::CommandBuffer const command_buffer, Object& object);
+		void draw_objects(vk::CommandBuffer const command_buffer);
 		void prepare_frame_resources();
 
 		[[nodiscard]] std::vector<vk::DescriptorSet> allocate_sets() const;

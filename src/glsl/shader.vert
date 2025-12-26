@@ -4,6 +4,10 @@ layout (set = 0, binding = 0) uniform View {
   mat4 mat_vp;
 };
 
+layout (set = 2, binding = 0) readonly buffer matrices {
+    mat4 mat_ms[];
+};
+
 layout (location = 0) in vec2 a_pos;
 layout (location = 1) in vec3 a_color;
 layout (location = 2) in vec2 a_uv;
@@ -15,5 +19,5 @@ void main() {
     vec4 world_pos = vec4(a_pos, 0.0, 1.0);
     out_color = a_color;
     out_uv = a_uv;
-    gl_Position = mat_vp * world_pos;
+    gl_Position = mat_vp * mat_ms[gl_InstanceIndex] * world_pos;
 }

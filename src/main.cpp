@@ -4,7 +4,7 @@
 
 int main() {
 	try {
-		sve::App{}.run();
+		sve::Engine{}.run();
 	}
 	catch (std::exception const& e) {
 		std::println(stderr, "PANIC: {}", e.what());

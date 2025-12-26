@@ -6,6 +6,8 @@
 #include <bit>
 #include <glm/ext/matrix_clip_space.hpp>
 
+constexpr auto MAX_OBJECTS = 16;;
+constexpr auto MAX_TEXTURES = 16;;
 
 using namespace std::chrono_literals;
 
@@ -37,6 +39,7 @@ namespace sve {
 		create_descriptor_sets();
 
 		m_view_ubo.emplace(m_allocator, m_gpu.queue_family, vk::BufferUsageFlagBits::eUniformBuffer);
+		m_instance_ssbo.emplace(m_allocator, m_gpu.queue_family, vk::BufferUsageFlagBits::eStorageBuffer);
 	}
 
 	void Renderer::create_render_sync() {
@@ -79,7 +82,6 @@ namespace sve {
 		static constexpr auto pool_sizes_v = std::array{
 			vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 8},
 			vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler,8},
-			//vk::DescriptorPoolSize{vk::DescriptorType::eStorageBuffer, 8},
 		};
 		auto pool_ci = vk::DescriptorPoolCreateInfo{};
 		pool_ci.setPoolSizes(pool_sizes_v).setMaxSets(16);
@@ -91,15 +93,16 @@ namespace sve {
 			layout_binding(0, vk::DescriptorType::eUniformBuffer)
 		};
 		static constexpr auto set_1_bindings_v = std::array{
-			vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eCombinedImageSampler, 10, vk::ShaderStageFlagBits::eFragment},
+			vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eCombinedImageSampler, MAX_TEXTURES, vk::ShaderStageFlagBits::eFragment},
 		};
-		/*static constexpr auto set_2_bindings_v = std::array{
+		static constexpr auto set_2_bindings_v = std::array{
 			layout_binding(0, vk::DescriptorType::eStorageBuffer),
-		};*/
+		};
 
-		auto set_layout_cis = std::array<vk::DescriptorSetLayoutCreateInfo, 2>{};
+		auto set_layout_cis = std::array<vk::DescriptorSetLayoutCreateInfo, 3>{};
 		set_layout_cis[0].setBindings(set_0_bindings_v);
 		set_layout_cis[1].setBindings(set_1_bindings_v);
+		set_layout_cis[2].setBindings(set_2_bindings_v);
 
 		for (auto const& set_layout_ci : set_layout_cis) {
 			m_set_layouts.push_back(m_device.createDescriptorSetLayoutUnique(set_layout_ci));
@@ -157,6 +160,17 @@ namespace sve {
 		return true;
 	}
 
+	void Renderer::update_instance_ssbo() {
+		std::vector<glm::mat4> models;
+		models.reserve(m_objects_to_draw.size());
+
+		for (auto& object : m_objects_to_draw) {
+			models.push_back(object->transform.model_matrix());
+		}
+
+		m_instance_ssbo->write_at(m_frame_index, std::as_bytes(std::span{ models }));
+	}
+
 	void Renderer::update_view() {
 		auto const half_size = 0.5f * glm::vec2{ m_framebuffer_size };
 		auto const mat_projection = glm::ortho(-half_size.x, half_size.x, -half_size.y, half_size.y);
@@ -167,10 +181,11 @@ namespace sve {
 	}
 
 	void Renderer::bind_descriptor_sets(vk::CommandBuffer const command_buffer) const {
-		auto writes = std::array<vk::WriteDescriptorSet, 1>{};
+		auto writes = std::array<vk::WriteDescriptorSet, 2>{};
 		auto const& descriptor_sets = m_descriptor_sets.at(m_frame_index);
-		auto const set0 = descriptor_sets[0];
+
 		auto write = vk::WriteDescriptorSet{};
+		auto const set0 = descriptor_sets[0];
 		auto const view_ubo_info = m_view_ubo->descripter_info_at(m_frame_index);
 
 		write.setBufferInfo(view_ubo_info)
@@ -180,14 +195,14 @@ namespace sve {
 			.setDstBinding(0);
 		writes[0] = write;
 
-		/*auto const set2 = descriptor_sets[2];
-		auto const instance_ssbo_info = m_instance_ssbo->descripter_info_at(m_frame_index);
-		write.setBufferInfo(instance_ssbo_info)
+		auto const set2 = descriptor_sets[2];
+		auto ssbo_info = m_instance_ssbo->descripter_info_at(m_frame_index);
+		write.setBufferInfo(ssbo_info)
 			.setDescriptorType(vk::DescriptorType::eStorageBuffer)
 			.setDescriptorCount(1)
 			.setDstSet(set2)
 			.setDstBinding(0);
-		writes[2] = write;*/
+		writes[1] = write;
 
 		m_device.updateDescriptorSets(writes, {});
 
@@ -238,17 +253,17 @@ namespace sve {
 				ImGui::TreePop();
 			}
 
-			/*ImGui::Separator();
+			ImGui::Separator();
 			if (ImGui::TreeNode("Instances")) {
-				for (size_t i = 0; i < m_instances.size(); i++) {
+				for (size_t i = 0; i < m_objects_to_draw.size(); i++) {
 					auto const label = std::to_string(i);
 					if (ImGui::TreeNode(label.c_str())) {
-						inspect_transform(m_instances.at(i));
+						inspect_transform(m_objects_to_draw.at(i)->transform);
 						ImGui::TreePop();
 					}
 				}
 				ImGui::TreePop();
-			}*/
+			}
 		}
 		ImGui::End();
 	}
@@ -320,18 +335,24 @@ namespace sve {
 		}
 	}
 
-	void Renderer::draw_object(vk::CommandBuffer const command_buffer,  Object& object) {
-		command_buffer.pushConstants(
-			*m_pipeline_layout,
-			vk::ShaderStageFlagBits::eFragment,
-			0,
-			sizeof(uint32_t),
-			&object.texture_index
-		);
-		object.material.shader->bind(command_buffer, m_framebuffer_size);
-		command_buffer.bindVertexBuffers(0, object.mesh.vertex_buffer.get().buffer, vk::DeviceSize{});
-		command_buffer.bindIndexBuffer(object.mesh.vertex_buffer.get().buffer, 4 * sizeof(Vertex), vk::IndexType::eUint32);
-		command_buffer.drawIndexed(object.mesh.index_count, 1, 0, 0, 0);
+	void Renderer::draw_objects(vk::CommandBuffer const command_buffer) {
+		uint32_t ssbo_index = 0;
+		for (uint32_t i = 0; i < m_objects_to_draw.size(); i++)
+		{
+			auto object = m_objects_to_draw[i];
+			command_buffer.pushConstants(
+				*m_pipeline_layout,
+				vk::ShaderStageFlagBits::eFragment,
+				0,
+				sizeof(uint32_t),
+				&object->texture_index
+			);
+			object->material.shader->bind(command_buffer, m_framebuffer_size);
+			command_buffer.bindVertexBuffers(0, object->mesh.vertex_buffer.get().buffer, vk::DeviceSize{});
+			command_buffer.bindIndexBuffer(object->mesh.vertex_buffer.get().buffer, 4 * sizeof(Vertex), vk::IndexType::eUint32);
+			command_buffer.drawIndexed(object->mesh.index_count, object->instance_count, 0, 0, ssbo_index);
+			ssbo_index += object->instance_count;
+		}
 	}
 
 	void Renderer::prepare_frame_resources() {
@@ -378,14 +399,13 @@ namespace sve {
 
 		
 		inspect();
+		update_instance_ssbo();
 		update_view();
 
 
 		command_buffer.beginRendering(rendering_info);
 
-		for (auto& object : m_objects_to_draw) {
-			draw_object(command_buffer, *object);
-		}
+		draw_objects(command_buffer);
 		
 
 		command_buffer.endRendering();

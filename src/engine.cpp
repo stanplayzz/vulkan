@@ -77,7 +77,7 @@ namespace sve {
 		}
 	}
 
-	void App::run() {
+	void Engine::run() {
 		m_assets_dir = locate_assets_dir();
 
 		create_window();
@@ -97,11 +97,11 @@ namespace sve {
 		main_loop();
 	}
 
-	void App::create_window() {
+	void Engine::create_window() {
 		m_window = glfw::create_window({ 1280, 720 }, "Stan's Vulkan Engine");
 	}
 
-	void App::create_instance() {
+	void Engine::create_instance() {
 		VULKAN_HPP_DEFAULT_DISPATCHER.init();
 		auto const loader_version = vk::enumerateInstanceVersion();
 		if (loader_version < vk_version_v) {
@@ -125,16 +125,16 @@ namespace sve {
 		VULKAN_HPP_DEFAULT_DISPATCHER.init(*m_instance);
 	}
 
-	void App::create_surface() {
+	void Engine::create_surface() {
 		m_surface = glfw::create_surface(m_window.get(), *m_instance);
 	}
 
-	void App::select_gpu() {
+	void Engine::select_gpu() {
 		m_gpu = get_suitable_gpu(*m_instance, *m_surface);
 		std::println("Using GPU: {}", std::string_view{ m_gpu.properties.deviceName });
 	}
 
-	void App::create_device() {
+	void Engine::create_device() {
 		auto queue_ci = vk::DeviceQueueCreateInfo{};
 
 		static constexpr auto queue_priorities_v = std::array{ 1.0f };
@@ -165,16 +165,16 @@ namespace sve {
 		m_waiter = *m_device;
 	}
 
-	void App::create_allocator() {
+	void Engine::create_allocator() {
 		m_allocator = vma::create_allocator(*m_instance, m_gpu.device, *m_device);
 	}
 
-	void App::create_swapchain() {
+	void Engine::create_swapchain() {
 		auto const size = glfw::framebuffer_size(m_window.get());
 		m_swapchain.emplace(*m_device, m_gpu, *m_surface, size);
 	}
 
-	void App::create_shader() {
+	void Engine::create_shader() {
 		auto const vertex_spirv = to_spir_v(asset_path("shader.vert"));
 		auto const fragment_spirv = to_spir_v(asset_path("shader.frag"));
 
@@ -193,7 +193,7 @@ namespace sve {
 		m_shader.emplace(shader_ci);
 	}
 
-	void App::create_shader_resources() {
+	void Engine::create_shader_resources() {
 
 		static constexpr auto vertices_v = std::array{
 			Vertex{.position = { -200.f, -200.f }, .uv = {0.0f, 1.0f}},
@@ -252,7 +252,7 @@ namespace sve {
 		m_object.material.shader = &m_shader.value();
 	}
 
-	void App::create_renderer() {
+	void Engine::create_renderer() {
 		auto renderer_ci = RendererCreateInfo{ .swapchain = *m_swapchain };
 		renderer_ci.device = *m_device;
 		renderer_ci.format = m_swapchain->get_format();
@@ -265,21 +265,21 @@ namespace sve {
 		m_renderer.emplace(renderer_ci);
 	}
 
-	fs::path App::asset_path(std::string_view const uri) const {
+	fs::path Engine::asset_path(std::string_view const uri) const {
 		return m_assets_dir / uri;
 	}
 
-	CommandBlock App::create_command_block() const {
+	CommandBlock Engine::create_command_block() const {
 		return CommandBlock{ *m_device, m_queue, *m_renderer->m_cmd_block_pool };
 	}
 
-	void App::main_loop() {
+	void Engine::main_loop() {
 		
 
 		while (glfwWindowShouldClose(m_window.get()) == GLFW_FALSE) {
 			glfwPollEvents();
 			
-
+			// currently does nothing, since inst
 			update_instances();
 
 			m_renderer->submit(m_object);
@@ -289,14 +289,14 @@ namespace sve {
 		}
 	}
 
-	void App::update_instances() {
-		m_instance_data.clear();
-		m_instance_data.reserve(m_instances.size());
-		for (auto const& transform : m_instances) {
-			m_instance_data.push_back(transform.model_matrix());
-		}
+	void Engine::update_instances() {
+		auto instance_data = std::vector<glm::mat4>{};
+
+		instance_data.reserve(1);
 		
-		auto const span = std::span{ m_instance_data };
+		instance_data.push_back(m_object.transform.model_matrix());
+		
+		auto const span = std::span{ instance_data };
 		void* data = span.data();
 		auto const bytes = std::span{ static_cast<std::byte const*>(data), span.size_bytes() };
 		m_instance_ssbo->write_at(m_frame_index, bytes);

@@ -1,6 +1,7 @@
 #pragma once
 #include "../vma.hpp"
 #include "../texture.hpp"
+#include "transform.hpp"
 #include "../shader_program.hpp"
 
 
@@ -18,8 +19,9 @@ namespace sve {
 	struct Object {
 		Mesh mesh;
 		Material material;
-		glm::mat4 transform;
+		Transform transform;
 
 		uint32_t texture_index{};
+		uint32_t instance_count = 1;
 	};
 }
