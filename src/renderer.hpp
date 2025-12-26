@@ -26,17 +26,6 @@ namespace sve {
 		VmaAllocator* allocator{};
 	};
 
-	struct DrawableObject {
-		vma::Buffer* vertex_buffer;
-		std::uint32_t index_count;
-
-		ShaderProgram* shader;
-		Texture* texture;
-		uint32_t texture_index{};
-
-		//std::vector<Transform> transforms{};
-	};
-
 	class Renderer {
 	public:
 		using CreateInfo = RendererCreateInfo;
